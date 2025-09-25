@@ -2,11 +2,9 @@ Matthew Zhang
 
 # **Abstract**
 
-In this demonstration, I will convert a Raspberry PI 4 Model B into a functional NAT router with a wireless access point for devices to connect.
-
 # **Introduction**
 
-A number of Linux commands were used to set up and troubleshoot the raspberry pi.
+In this demonstration, I will convert a Raspberry PI 4 Model B into a functional NAT router with a wireless access point for devices to connect. The main goal of this project is to take my primary home network and pass it through my Raspberry PI router and allow other devices to connect to the Raspberry PI through the access point gateway. The following sections will go through the process of converting a Raspberry PI into a router and giving some background information regarding network configuration.
 
 # **Setup**
 
@@ -83,6 +81,22 @@ Add this single line to the file:
 **`net.ipv4.ip_forward=1`**
 
 This line says we will forward IPv4 addresses between the wireless access point and the router.
+
+Next, create the Access Point (AP) interface with the following commands:  
+**`sudo iw dev wlan0 interface add ap0 type __ap`**   
+**`sudo ip link set ap0 up`**   
+**`sudo ip addr add 192.168.50.1/24 dev ap0`**
+
+This set of commands creates a new wireless access point for client devices to connect with my Raspberry PI router:
+
+* `sudo iw dev wlan0 interface add ap0 type __ap`  
+   Makes a **virtual wireless interface** called **ap0** on the same physical radio as `wlan0`, with the **AP (access-point) mode**. This is what lets one Wi-Fi chip do two jobs at once: `wlan0` stays a client (uplink) while **ap0** is the AP (downlink). Your adapter/driver must support **AP mode** and, if you want AP+client simultaneously, the right **interface combinations** (check with `iw list`). ([ArchWiki](https://wiki.archlinux.org/title/Software_access_point))
+
+* `sudo ip link set ap0 up`  
+   **Brings the interface up** (activates it). Until an interface is “up,” the kernel won’t pass frames through it. This is the standard `iproute2` way to enable a network device. ([man7.org](https://www.man7.org/linux/man-pages/man8/ip-link.8.html?utm_source=chatgpt.com))
+
+* `sudo ip addr add 192.168.50.1/24 dev ap0`  
+   **Assigns an IPv4 address** (the Pi’s gateway IP) to **ap0** with a **/24** prefix (255.255.255.0). Clients on your AP will live in the same subnet (e.g., 192.168.50.10–100 from dnsmasq) and use **192.168.50.1** as their default gateway. ([man7.org](https://www.man7.org/linux/man-pages/man8/ip-address.8.html?utm_source=chatgpt.com))
 
 ## **DNSMASQ Configuration**
 
@@ -208,44 +222,121 @@ WLAN or wireless local area network is a type of network that uses Wi-Fi to conn
 wpa\_supplicant is responsible for handling the connection between my router and the primary home network. The wpa\_supplicant can scan for networks, handle security, and keep the connection alive or reconnect the connection if the connection is severed. There are no direct changes required for wpa\_supplicant if the connection is through a physical connection, such as an ethernet cable, or a higher-level network manager is used.
 
 Here is how my wpa\_supplicant is organized:  
-ctrl\_interface=DIR=/var/run/wpa\_supplicant GROUP=netdev  
-update\_config=1  
-country=US
+**`ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev`**  
+**`update_config=1`**  
+**`country=US`**
 
-network={  
-    ssid=\[Primary Home Network’s Name\]  
-    psk=\[Primary Home Network’s Password\]  
-    scan\_ssid=1  
-}
+**`network={`**  
+    **`ssid=[Primary Home Network’s Name]`**  
+    **`psk=[Primary Home Network’s Password]`**  
+    **`scan_ssid=1`**  
+**`}`**
 
 By looking at the interface line-by-line:
 
-* ctrl\_interface=DIR=/var/run/wpa\_supplicant GROUP=netdev  
-  * Creates a control socket so tools like wpa\_cli/wpa\_gui can talk to wpa\_supplicant.  
-  * GROUP=netdev lets users in the netdev group run wpa\_cli without root.  
-* update\_config=1  
+* **`ctrl_interface=DIR=/var/run/wpa_supplicant GROUP=netdev`**  
+  * Creates a control socket so tools like **`wpa_cli/wpa_gui`** can talk to wpa\_supplicant.  
+  * **`GROUP=netdev`** lets users in the **`netdev`** group run **`wpa_cli`** without root.  
+* **`update_config=1`**  
   * Allows wpa\_supplicant (via wpa\_cli or GUI tools) to modify and save this file (add networks, change PSKs) when you run wpa\_cli save\_config.  
-* country=US  
+* **`country=US`**  
   * Sets the regulatory domain (legal channels/power for the U.S.). Keep this consistent with hostapd’s country\_code=US.  
-* network={  
-     ssid=\[Primary Home Network Name\]  
-      psk=\[Primary Home Network Password\]  
-      scan\_ssid=1  
-  }  
+* **`network={`**  
+     **`ssid=[Primary Home Network Name]`**  
+      **`psk=[Primary Home Network Password]`**  
+      **`scan_ssid=1`**  
+  **`}`**  
   * This block defines one Wi-Fi you want wlan0 to join.  
-  * ssid=\[Primary Home Network Name\]   
+  * **`ssid=[Primary Home Network Name]`**   
     * the name of the network the router will connect with.  
     * Use quotes in real files, e.g. ssid="My-Network" (especially if it has spaces/special chars).  
-  * psk=\[Primary Home Network Password\]   
+  * **`psk=[Primary Home Network Password]`**   
     * The password of the network  
     * This must also be inside quotation marks  
-  * scan\_ssid=1 – tells wpa\_supplicant to actively probe for this SSID (needed if the network hides its SSID).  
+  * **`scan_ssid=1`**   
+    * tells wpa\_supplicant to actively probe for this SSID (needed if the network hides its SSID).  
     * If the AP isn’t hidden, you can omit this; it won’t hurt if left on.
+
+### **Additional Uplink Configurations**
+
+* `sudo ln -s /etc/wpa_supplicant/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant-wlan0.conf`  
+   Creates a **symlink** so the per-interface service `wpa_supplicant@wlan0.service` can find its config.  
+   On Raspberry Pi OS/Debian, that service looks for `/etc/wpa_supplicant/wpa_supplicant-<interface>.conf`.  
+   The link just points that expected file to your main config, so you don’t have to maintain two copies.
+
+* `sudo systemctl enable wpa_supplicant@wlan0.service`  
+   **Enable at boot**. This tells systemd: “start the wpa\_supplicant instance for `wlan0` automatically on every boot.”  
+   (Enable \= make it persistent. It doesn’t necessarily start it *right now*.)
+
+* `sudo systemctl restart wpa_supplicant@wlan0.service`  
+   **Apply your changes now** by stopping and starting the `wlan0` instance. This makes it re-read the config and reconnect to the Wi-Fi.
+
+* `sudo ip route replace default via 192.168.12.1 dev wlan0`  
+   Sets (or replaces) the **default route** so all internet-bound traffic goes out **via `wlan0`** to the **gateway 192.168.12.1** (your upstream router).  
+   Use this when DHCP didn’t install the right default route or another interface (like `eth0`) stole it.  
+   Notes:
+
+  * This is **temporary** (lasts until reboot or until DHCP changes routes). To make it stick, prefer letting DHCP set the route, or use `dhcpcd.conf` (e.g., give `eth0` `nogateway` and/or set **metrics** so `wlan0` is preferred).
+
+  * Make sure the gateway (`192.168.12.1`) is actually in the same subnet as `wlan0`’s IP.
+
+## **Restart Services**
+
+Restart services to apply the changes made to the configuration file:
+
+**`sudo systemctl restart hostapd`**  
+**`sudo systemctl restart dnsmasq`**  
+**`sudo systemctl restart dhcpcd`**
+
+# **Enable Routing and NAT**
+
+* `sudo nano /etc/sysctl.conf`  
+   You open the kernel-settings file to add:  
+   `net.ipv4.ip_forward=1` → **allow the kernel to forward IPv4 packets between interfaces** (required for routing). The kernel knob is `ip_forward` (0=off, 1=on). ([Kernel.org](https://www.kernel.org/doc/html/latest/networking/ip-sysctl.html?utm_source=chatgpt.com))
+
+* `sudo sysctl -p`  
+   **Apply the changes right now** by (re)loading `/etc/sysctl.conf`. With `-p`, sysctl reads that file by default and sets the listed parameters. ([Arch Manual Pages](https://man.archlinux.org/man/sysctl.8.en?utm_source=chatgpt.com))
+
+* `sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE`  
+   Turn on **NAT** for traffic leaving via `wlan0`.  
+   **MASQUERADE** \= a form of **SNAT** that automatically rewrites each packet’s **source IP** to the **current address of `wlan0`** (great when the uplink IP is assigned by DHCP and can change). It only works in the **`nat` table’s `POSTROUTING` chain**. If you had a fixed public IP, you’d typically use `SNAT` instead. ([ipset.netfilter.org](https://ipset.netfilter.org/iptables-extensions.man.html?utm_source=chatgpt.com))
+
+* `sudo iptables -A FORWARD -i ap0 -o wlan0 -j ACCEPT`  
+   **Allow forwarding** of packets going **from your LAN (ap0) to the internet (wlan0)**. Without this, forwarded packets would be dropped. (This is in the default **filter** table’s `FORWARD` chain.) ([ArchWiki](https://wiki.archlinux.org/title/Iptables?utm_source=chatgpt.com))
+
+* `sudo iptables -A FORWARD -i wlan0 -o ap0 -m state --state RELATED,ESTABLISHED -j ACCEPT`  
+   **Allow replies back in** for connections that were started by your LAN. The `state`/`conntrack` matcher recognizes flows already in progress (`ESTABLISHED`) and helper traffic (`RELATED`), so only legit return traffic is accepted. (Modern docs often show `-m conntrack --ctstate`, which is the newer equivalent.) ([man7.org](https://www.man7.org/linux/man-pages/man8/iptables-extensions.8.html))
+
+* `sudo netfilter-persistent save`  
+   **Save your current iptables rules so they survive reboots** (on Debian/Ubuntu this writes to `/etc/iptables/rules.v4`/`.v6` after installing `iptables-persistent`). ([Debian Manpages](https://manpages.debian.org/buster/netfilter-persistent/netfilter-persistent.8.en.html?utm_source=chatgpt.com))
 
 # **Automatic Startup on Boot**
 
+Until now, all of the configurations and services we have employed only lasted until the Raspberry PI shutdowns or reboots. To keep our changes on reboot, we must utilize scripts that run on boot which will reconfigure our changes. Scripts will be located in the /bin/ directory. The “bin” keyword refers to “binary”, in which scripts are converted to: binary machine code. We will create a new file called “setup-router.sh” inside the /bin/ directory. This will be the script that sets up our router on boot:
+
+**`sudo nano /usr/local/bin/setup-router.sh`**
+
+**`sudo nano /etc/systemd/system/setup-router.service`**  
+**`sudo systemctl enable setup-router.service`**
+
 # **Reliability Checks**
+
+**`sudo systemctl disable NetworkManager`**  
+**`iw wlan0 get power_save`**  
+**`sudo iw wlan0 set power_save off`**  
+**`sudo nano /usr/local/bin/wlan0-nosleep.sh`**  
+**`sudo nano /etc/systemd/system/wlan0-nosleep.service`**  
+**`sudo systemctl enable --now router-healthcheck.timer`**
 
 # **Troubleshooting**
 
+**`iwgetid`**  
+**`iw dev ap0 info`**  
+**`ip -4 addr show ap0`**  
+**`ip route`**  
+**`iptables -t nat -L -n`**  
+**`ping -c 3 8.8.8.8`**
+
 # **Conclusion**
+
+This documentation goes over the process of configuring a Raspberry PI into a functional router with a wireless access point.
