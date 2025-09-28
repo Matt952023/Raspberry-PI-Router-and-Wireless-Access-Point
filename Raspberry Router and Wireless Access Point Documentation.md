@@ -316,6 +316,10 @@ Until now, all of the configurations and services we have employed only lasted u
 
 **`sudo nano /usr/local/bin/setup-router.sh`**
 
+**`sudo chmod +x /usr/local/bin/setup-router.sh`**
+
+To actually run the script, a service must be set up within the systemd directory. Systemd is a system and service manager for Linux operating systems and replaces the .init system.
+
 **`sudo nano /etc/systemd/system/setup-router.service`**  
 **`sudo systemctl enable setup-router.service`**
 
@@ -330,12 +334,25 @@ Until now, all of the configurations and services we have employed only lasted u
 
 # **Troubleshooting**
 
-**`iwgetid`**  
-**`iw dev ap0 info`**  
-**`ip -4 addr show ap0`**  
-**`ip route`**  
-**`iptables -t nat -L -n`**  
-**`ping -c 3 8.8.8.8`**
+Throughout this project, I used various commands, to determine whether network paths were set up properly and the router is able to communicate with the internet. The most used commands are listed below:
+
+* **`iwgetid`**  
+  * Prints the Service Set Identifier (SSID) of the uplink network or the primary network that my router is routing.   
+* **`iw dev ap0 info`**  
+  * The iw command is used to display wireless devices and their configuration.   
+  * In this case, the syntax of “dev ap0 info” is used to display information regarding the network interface, dev, of ap0.   
+  * I use this command to determine if my access point is running properly.  
+* **`ip -4 addr show ap0`**  
+  * Lists the IPv4 addresses on the ap0 wireless interface.   
+  * If the IP address is the same as the static address inside dhcpcd.conf and the message that says “state UP”, then things should be working correctly.  
+* **`ip route`**  
+  * Prints the IP routing table which displays how network packets are forwarded between different hosts and networks.  
+* **`iptables -t nat -L -n`**  
+  * This command will display the Network Address Translation (NAT) table for the Raspberry PI Router.   
+  * Specifically, the “-t nat” option in conjunction with the iptables command will provide a table with rules for PREROUTING, OUTPUT, and POSTROUTING.  
+* **`ping -c 3 8.8.8.8`**  
+  * Using the ping command with the \-c option, meaning count, followed by an integer will send that many packets of data to the destination address.  
+  * The 8.8.8.8 belongs to Google’s public DNS server and we are sending three packets to the address. I used this command many times to check the internet connectivity of the Raspberry PI router. 
 
 # **Conclusion**
 
