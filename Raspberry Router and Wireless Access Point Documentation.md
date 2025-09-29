@@ -89,14 +89,12 @@ Next, create the Access Point (AP) interface with the following commands:
 
 This set of commands creates a new wireless access point for client devices to connect with my Raspberry PI router:
 
-* `sudo iw dev wlan0 interface add ap0 type __ap`  
-   Makes a **virtual wireless interface** called **ap0** on the same physical radio as `wlan0`, with the **AP (access-point) mode**. This is what lets one Wi-Fi chip do two jobs at once: `wlan0` stays a client (uplink) while **ap0** is the AP (downlink). Your adapter/driver must support **AP mode** and, if you want AP+client simultaneously, the right **interface combinations** (check with `iw list`). ([ArchWiki](https://wiki.archlinux.org/title/Software_access_point))
-
-* `sudo ip link set ap0 up`  
-   **Brings the interface up** (activates it). Until an interface is “up,” the kernel won’t pass frames through it. This is the standard `iproute2` way to enable a network device. ([man7.org](https://www.man7.org/linux/man-pages/man8/ip-link.8.html?utm_source=chatgpt.com))
-
-* `sudo ip addr add 192.168.50.1/24 dev ap0`  
-   **Assigns an IPv4 address** (the Pi’s gateway IP) to **ap0** with a **/24** prefix (255.255.255.0). Clients on your AP will live in the same subnet (e.g., 192.168.50.10–100 from dnsmasq) and use **192.168.50.1** as their default gateway. ([man7.org](https://www.man7.org/linux/man-pages/man8/ip-address.8.html?utm_source=chatgpt.com))
+* **`sudo iw dev wlan0 interface add ap0 type __ap`**  
+  * Makes a **virtual wireless interface** called **ap0** on the same physical radio as `wlan0`, with the **AP (access-point) mode**. This is what lets one Wi-Fi chip do two jobs at once: `wlan0` stays a client (uplink) while **ap0** is the AP (downlink). Your adapter/driver must support **AP mode** and, if you want an AP+client simultaneously, the right **interface combinations** (check with `iw list`).  
+* **`sudo ip link set ap0 up`**  
+  * **Brings the interface up** (activates it). Until an interface is “up,” the kernel won’t pass frames through it. This is the standard `iproute2` way to enable a network device  
+* **`sudo ip addr add 192.168.50.1/24 dev ap0`**  
+  * **Assigns an IPv4 address** (the Pi’s gateway IP) to **ap0** with a **/24** prefix (255.255.255.0). Clients on your AP will live in the same subnet (e.g., 192.168.50.10–100 from **`dnsmasq`**) and use **192.168.50.1** as their default gateway.
 
 ## **DNSMASQ Configuration**
 
@@ -257,28 +255,24 @@ By looking at the interface line-by-line:
     * tells wpa\_supplicant to actively probe for this SSID (needed if the network hides its SSID).  
     * If the AP isn’t hidden, you can omit this; it won’t hurt if left on.
 
-### **Additional Uplink Configurations**
+After editing the wpa\_supplicant file, we need to make sure that the system kernel is able to utilize that file in our wlan0 interface. The next set of commands enables the wpa\_supplicant, makes sure it runs on boot, and also adjusts the network route, so that our router will connect with the upstream network.
 
-* `sudo ln -s /etc/wpa_supplicant/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant-wlan0.conf`  
-   Creates a **symlink** so the per-interface service `wpa_supplicant@wlan0.service` can find its config.  
-   On Raspberry Pi OS/Debian, that service looks for `/etc/wpa_supplicant/wpa_supplicant-<interface>.conf`.  
-   The link just points that expected file to your main config, so you don’t have to maintain two copies.
-
-* `sudo systemctl enable wpa_supplicant@wlan0.service`  
-   **Enable at boot**. This tells systemd: “start the wpa\_supplicant instance for `wlan0` automatically on every boot.”  
-   (Enable \= make it persistent. It doesn’t necessarily start it *right now*.)
-
-* `sudo systemctl restart wpa_supplicant@wlan0.service`  
-   **Apply your changes now** by stopping and starting the `wlan0` instance. This makes it re-read the config and reconnect to the Wi-Fi.
-
-* `sudo ip route replace default via 192.168.12.1 dev wlan0`  
-   Sets (or replaces) the **default route** so all internet-bound traffic goes out **via `wlan0`** to the **gateway 192.168.12.1** (your upstream router).  
-   Use this when DHCP didn’t install the right default route or another interface (like `eth0`) stole it.  
-   Notes:
-
-  * This is **temporary** (lasts until reboot or until DHCP changes routes). To make it stick, prefer letting DHCP set the route, or use `dhcpcd.conf` (e.g., give `eth0` `nogateway` and/or set **metrics** so `wlan0` is preferred).
-
-  * Make sure the gateway (`192.168.12.1`) is actually in the same subnet as `wlan0`’s IP.
+* **`sudo ln -s /etc/wpa_supplicant/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant-wlan0.conf`**  
+  * Creates a **symlink** so the per-interface service **`wpa_supplicant@wlan0.service`** can find its configuration file.  
+  * On Raspberry Pi OS/Debian, that service looks for: **`/etc/wpa_supplicant/wpa_supplicant-<interface>.conf`**  
+    * The link just points that expected file to your main configuration file, so you don’t have to maintain two copies.  
+* **`sudo systemctl enable wpa_supplicant@wlan0.service`**  
+  * **Enable at boot**.   
+    * This tells **systemd**: “start the wpa\_supplicant instance for **`wlan0`** automatically on every boot.”  
+      * (Enable \= make it persistent. It doesn’t necessarily start right *now*.)  
+* **`sudo systemctl restart wpa_supplicant@wlan0.service`**  
+  * **Apply your changes now** by stopping and starting the **`wlan0`** instance.  
+    * This makes it re-read the config and reconnect to the Wi-Fi.  
+* **`sudo ip route replace default via 192.168.12.1 dev wlan0`**  
+  * Sets (or replaces) the **default route** so all internet-bound traffic goes out **via `wlan0`** to the **gateway 192.168.12.1** (your upstream router).  
+  * Use this when DHCP didn’t install the right default route or another interface (like **`eth0`**) stole it.  
+    * NOTE: This is **temporary** (lasts until reboot or until DHCP changes routes). To make it stick, prefer letting DHCP set the route, or use **`dhcpcd.conf`** (e.g., give **`eth0` `nogateway`** and/or set **metrics** so **`wlan0`** is preferred).  
+  * Make sure the gateway **(`192.168.12.1`**) is actually in the same subnet as **`wlan0`**’s IP.
 
 ## **Restart Services**
 
@@ -290,25 +284,54 @@ Restart services to apply the changes made to the configuration file:
 
 # **Enable Routing and NAT**
 
-* `sudo nano /etc/sysctl.conf`  
-   You open the kernel-settings file to add:  
-   `net.ipv4.ip_forward=1` → **allow the kernel to forward IPv4 packets between interfaces** (required for routing). The kernel knob is `ip_forward` (0=off, 1=on). ([Kernel.org](https://www.kernel.org/doc/html/latest/networking/ip-sysctl.html?utm_source=chatgpt.com))
+In order to get our Raspberry PI to act as a router, we will need to employ the usage of the **`iptables`** command-line tool which will let us configure how packets of data will be broadcasted throughout the router. The rules that will be created and utilized are shown below:
 
-* `sudo sysctl -p`  
-   **Apply the changes right now** by (re)loading `/etc/sysctl.conf`. With `-p`, sysctl reads that file by default and sets the listed parameters. ([Arch Manual Pages](https://man.archlinux.org/man/sysctl.8.en?utm_source=chatgpt.com))
+**`sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE`**
 
-* `sudo iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE`  
-   Turn on **NAT** for traffic leaving via `wlan0`.  
-   **MASQUERADE** \= a form of **SNAT** that automatically rewrites each packet’s **source IP** to the **current address of `wlan0`** (great when the uplink IP is assigned by DHCP and can change). It only works in the **`nat` table’s `POSTROUTING` chain**. If you had a fixed public IP, you’d typically use `SNAT` instead. ([ipset.netfilter.org](https://ipset.netfilter.org/iptables-extensions.man.html?utm_source=chatgpt.com))
+Turn on Network Address Translation **(NAT)** for traffic leaving via `wlan0`. This rule allows packets sent from the upstream network through the proper channels on my router.
 
-* `sudo iptables -A FORWARD -i ap0 -o wlan0 -j ACCEPT`  
-   **Allow forwarding** of packets going **from your LAN (ap0) to the internet (wlan0)**. Without this, forwarded packets would be dropped. (This is in the default **filter** table’s `FORWARD` chain.) ([ArchWiki](https://wiki.archlinux.org/title/Iptables?utm_source=chatgpt.com))
+* **`-t nat`**  
+  * Lets us operate on the NAT table; The filter table will be used instead if no option is selected  
+* **`-A POSTROUTING`**  
+  * The \-A option is used to append a rule and POSTROUTING refers to the chain, a control at a certain point of a packet’s travel, specifically for packets that are about to go out. Therefore, we are appending a rule for packets that are getting output by our router.  
+* **`-o wlan0`**  
+  * This determines where the outbound packets are being sent. In this case, we are dealing with outgoing packets through wlan0 or the connection between our router and the upstream network/router  
+* **`-j masquerade`**  
+  * perform “masquerade” SNAT. It rewrites each packet’s **source IP** to the current address on `wlan0` (perfect when that IP comes from DHCP and may change). Masquerade is the dynamic form of SNAT and is used in `nat`/`POSTROUTING`.
 
-* `sudo iptables -A FORWARD -i wlan0 -o ap0 -m state --state RELATED,ESTABLISHED -j ACCEPT`  
-   **Allow replies back in** for connections that were started by your LAN. The `state`/`conntrack` matcher recognizes flows already in progress (`ESTABLISHED`) and helper traffic (`RELATED`), so only legit return traffic is accepted. (Modern docs often show `-m conntrack --ctstate`, which is the newer equivalent.) ([man7.org](https://www.man7.org/linux/man-pages/man8/iptables-extensions.8.html))
+**`sudo iptables -A FORWARD -i ap0 -o wlan0 -j ACCEPT`**
 
-* `sudo netfilter-persistent save`  
-   **Save your current iptables rules so they survive reboots** (on Debian/Ubuntu this writes to `/etc/iptables/rules.v4`/`.v6` after installing `iptables-persistent`). ([Debian Manpages](https://manpages.debian.org/buster/netfilter-persistent/netfilter-persistent.8.en.html?utm_source=chatgpt.com))
+Allow forwarding of packets going from the wireless access point or LAN **(ap0)** to the internet or upstream network **(wlan0)**. Without this, forwarded packets would be dropped. This is performed in the default filter table’s `FORWARD` chain.
+
+* **`-A FORWARD`**  
+  * Append to the FORWARD chain. The FORWARD chain are rules for packets being routed through the Raspberry PI.  
+* **`-i ap0`**  
+  * match packets **coming in** via the AP interface (ap0).  
+* **`-o wlan0`**   
+  * Same as the previous command: Matches packets that are going out through wlan0 or the connection to the upstream network  
+* **`-j ACCEPT`**  
+  * Allow the packets to be forwarded
+
+**`sudo iptables -A FORWARD -i wlan0 -o ap0 -m state --state RELATED,ESTABLISHED -j ACCEPT`**
+
+Allow replies back in for connections the LAN started. The “state/conntrack” matcher recognizes **ESTABLISHED** traffic (part of an existing flow) and **RELATED** helper traffic (like FTP data channels), so only legitimate return packets are accepted. You’ll also see the newer syntax **`-m conntrack --ctstate ...`**; **conntrack** is a superset of the older **state** match. This is a simple firewall filter which blocks unsolicited inbound connections, but allows replies to flow back.
+
+* **`-A FORWARD`**  
+  * Traffic going through the router  
+* **`-i wlan0 -o ap0`**  
+  * If you look at the previous command, the \-i and \-o options are swapped. This is because, in this case, we are looking at the packets coming from the upstream network and going out to the devices connected to the wireless access point.  
+* **`-m state`**  
+  * load the **state** match module (a subset of **conntrack**, Linux’s connection-tracking subsystem).  
+* **`--state RELATED,ESTABLISHED`**   
+  * match packets that are part of an **existing** connection (ESTABLISHED) or closely **RELATED** helper traffic (e.g., some protocols open secondary flows). In short: “let replies and related packets back in.”  
+* **`-j ACCEPT`**  
+  * allow those reply packets to pass.
+
+**`sudo netfilter-persistent save`**
+
+Save your current **`iptables`** rules so they survive reboots.
+
+On Debian/Ubuntu this writes to **`/etc/iptables/rules.v4`/`.v6`** after installing **`iptables-persistent`**.
 
 # **Automatic Startup on Boot**
 
