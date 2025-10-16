@@ -1,0 +1,5 @@
+[Unit]
+Description=Router auto-recovery watchdog
+
+[Service]
+ExecStart=/usr/local/bin/router-healthcheck.sh

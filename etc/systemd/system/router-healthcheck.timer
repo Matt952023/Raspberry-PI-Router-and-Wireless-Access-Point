@@ -1,0 +1,10 @@
+[Unit]
+Description=Run router health check every 30s
+
+[Timer]
+OnBootSec=1min
+OnUnitActiveSec=30s
+Unit=router-healthcheck.service
+
+[Install]
+WantedBy=timers.target
