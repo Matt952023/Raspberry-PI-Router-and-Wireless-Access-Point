@@ -1,0 +1,13 @@
+[Unit]
+Description=Custom Router Setup Script
+After=network-online.target dhcpcd.service wpa_supplicant@wlan0.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/setup-router.sh
+ExecStartPost=/usr/local/bin/wait-for-wlan0.sh
+RemainAfterExit=true
+
+[Install]
+WantedBy=multi-user.target
