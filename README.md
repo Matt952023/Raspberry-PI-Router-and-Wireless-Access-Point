@@ -36,7 +36,7 @@ These packages can be installed with these commands:
 **`sudo apt-get install dhcpcd5`**  
 **`sudo DEBIAN_FRONTEND=noninteractive apt install -y netfilter-persistent iptables-persistent`**
 
-The package, iptables, requires additional options tailored to our interests:
+The package, **`iptables`**, requires additional options tailored to our interests:
 
 * **`sudo`**  
   * run command with superuse (root) privileges  
@@ -64,11 +64,11 @@ Note that hostapd is masked by default and will have to be unmasked in order to 
 
 The **`systemctl`** command is a useful tool for managing services or programs inside Linux. The **`systemctl`** command communicates with **systemd**, software that manages different parts of the Linux operating system, and can start or stop services.
 
-The “--now” option means that systemctl will start the **dhcpcd** service on reboot immediately.
+The “--now” option means that **`systemctl`** will start the **dhcpcd** service on reboot immediately.
 
 # **Configuration Files**
 
-A number of various configuration files for the services we have installed requires some changes. Many of these files will be found in the /etc/ directory because that is where configuration files are stored on the Linux file system.
+A number of various configuration files for the services we have installed requires some changes. Many of these files will be found in the **`/etc/`** directory because that is where configuration files are stored on the Linux file system.
 
 ## **AP Configuration**
 
@@ -90,9 +90,9 @@ Next, create the Access Point (AP) interface with the following commands:
 This set of commands creates a new wireless access point for client devices to connect with my Raspberry PI router:
 
 * **`sudo iw dev wlan0 interface add ap0 type __ap`**  
-  * Makes a **virtual wireless interface** called **ap0** on the same physical radio as `wlan0`, with the **AP (access-point) mode**. This is what lets one Wi-Fi chip do two jobs at once: `wlan0` stays a client (uplink) while **ap0** is the AP (downlink). Your adapter/driver must support **AP mode** and, if you want an AP+client simultaneously, the right **interface combinations** (check with `iw list`).  
+  * Makes a **virtual wireless interface** called **ap0** on the same physical radio as **`wlan0`**, with the **AP (access-point) mode**. This is what lets one Wi-Fi chip do two jobs at once: **`wlan0`** stays a client (uplink) while **ap0** is the AP (downlink). Your adapter/driver must support **AP mode** and, if you want an AP+client simultaneously, the right **interface combinations** (check with **`iw list`**).  
 * **`sudo ip link set ap0 up`**  
-  * **Brings the interface up** (activates it). Until an interface is “up,” the kernel won’t pass frames through it. This is the standard `iproute2` way to enable a network device  
+  * **Brings the interface up** (activates it). Until an interface is “up,” the kernel won’t pass frames through it. This is the standard **`iproute2`** way to enable a network device  
 * **`sudo ip addr add 192.168.50.1/24 dev ap0`**  
   * **Assigns an IPv4 address** (the Pi’s gateway IP) to **ap0** with a **/24** prefix (255.255.255.0). Clients on your AP will live in the same subnet (e.g., 192.168.50.10–100 from **`dnsmasq`**) and use **192.168.50.1** as their default gateway.
 
@@ -252,10 +252,10 @@ By looking at the interface line-by-line:
     * The password of the network  
     * This must also be inside quotation marks  
   * **`scan_ssid=1`**   
-    * tells wpa\_supplicant to actively probe for this SSID (needed if the network hides its SSID).  
+    * tells **`wpa_supplicant`** to actively probe for this SSID (needed if the network hides its SSID).  
     * If the AP isn’t hidden, you can omit this; it won’t hurt if left on.
 
-After editing the wpa\_supplicant file, we need to make sure that the system kernel is able to utilize that file in our wlan0 interface. The next set of commands enables the wpa\_supplicant, makes sure it runs on boot, and also adjusts the network route, so that our router will connect with the upstream network.
+After editing the **`wpa_supplicant`** file, we need to make sure that the system kernel is able to utilize that file in our **`wlan0`** interface. The next set of commands enables the **`wpa_supplicant`**, makes sure it runs on boot, and also adjusts the network route, so that our router will connect with the upstream network.
 
 * **`sudo ln -s /etc/wpa_supplicant/wpa_supplicant.conf /etc/wpa_supplicant/wpa_supplicant-wlan0.conf`**  
   * Creates a **symlink** so the per-interface service **`wpa_supplicant@wlan0.service`** can find its configuration file.  
@@ -263,7 +263,7 @@ After editing the wpa\_supplicant file, we need to make sure that the system ker
     * The link just points that expected file to your main configuration file, so you don’t have to maintain two copies.  
 * **`sudo systemctl enable wpa_supplicant@wlan0.service`**  
   * **Enable at boot**.   
-    * This tells **systemd**: “start the wpa\_supplicant instance for **`wlan0`** automatically on every boot.”  
+    * This tells **systemd**: “start the **`wpa_supplicant`** instance for **`wlan0`** automatically on every boot.”  
       * (Enable \= make it persistent. It doesn’t necessarily start right *now*.)  
 * **`sudo systemctl restart wpa_supplicant@wlan0.service`**  
   * **Apply your changes now** by stopping and starting the **`wlan0`** instance.  
@@ -335,7 +335,7 @@ On Debian/Ubuntu this writes to **`/etc/iptables/rules.v4`/`.v6`** after install
 
 # **Startup on Boot**
 
-Until now, all of the configurations and services we have employed only lasted until the Raspberry PI shutdowns or reboots. To keep our changes on reboot, we must utilize scripts that run on boot which will reconfigure our changes. Scripts will be located in the /bin/ directory. The “bin” keyword refers to “binary”, in which scripts are converted to: binary machine code. We will create a new file called “setup-router.sh” inside the /bin/ directory:
+Until now, all of the configurations and services we have employed only lasted until the Raspberry PI shutdowns or reboots. To keep our changes on reboot, we must utilize scripts that run on boot which will reconfigure our changes. Scripts will be located in the **`/bin/`** directory. The “bin” keyword refers to “binary”, in which scripts are converted to: binary machine code. We will create a new file called **`setup-router.sh`** inside the **`/bin/`** directory:
 
 **`sudo nano /usr/local/bin/setup-router.sh`**
 
