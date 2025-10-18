@@ -39,7 +39,7 @@ systemctl restart dnsmasq
 # Enable IP forwarding
 sysctl -w net.ipv4.ip_forward=1
 
-# 🔐 Flush and reapply NAT rules
+# Flush and reapply NAT rules
 iptables -F
 iptables -t nat -F
 iptables -t nat -A POSTROUTING -o wlan0 -j MASQUERADE
